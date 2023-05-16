@@ -1,0 +1,590 @@
+% 電気学会研究会用テンプレート
+% 最新バージョン --> 2022/6/1
+\documentclass[dvipdfmx,9pt]{ieej}
+\usepackage[fleqn]{amsmath}
+\usepackage{bm}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{layout}
+\usepackage{tabularx}
+\usepackage{enumerate}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{fancyhdr}
+\usepackage{empheq}
+\usepackage[subrefformat=parens]{subcaption}
+\usepackage[top=26truemm,bottom=24truemm,left=16truemm,right=16truemm]{geometry}
+
+\makeatletter
+ \long\def\@makecaption#1#2{%
+ \vskip\abovecaptionskip
+ \iftdir\sbox\@tempboxa{#1\hskip1zw#2}%
+ \else\sbox\@tempboxa{#1 #2}%
+ \fi
+ \ifdim \wd\@tempboxa >\hsize
+ \iftdir #1\hskip1zw#2\relax\par
+ \else #1 #2\relax\par\fi
+ \else
+ \global \@minipagefalse
+ \hbox to\hsize{\hfil\box\@tempboxa\hfil}%
+ \fi
+ \vskip\belowcaptionskip}
+\makeatother
+
+\graphicspath{{./image/}} %グラフィックインクルードパス
+
+%\pagestyle{empty}
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0pt}
+\rhead{論文登録番号}
+
+\begin{document}
+%\layout
+
+\twocolumn
+[
+\begin{center}
+\vspace{4zh}
+% 日本語タイトル
+{\huge グループ化ACOの評価値分布に基づくCSD係数FIRフィルタ設計性能の検証}
+
+% 日本語著者，発表者には *
+\vspace{2zh}
+{\Large 森川 \quad まり花^*}\quad\quad{\Large 陶山\quad 健仁} {\Large（東京電機大学）}
+
+% 英字タイトル
+\vspace{2zh}
+{\bf Verification of CSD coefficient FIR filter design performance based on grouped ACO evaluation value distribution}\\
+%\vspace{1mm}
+% 英語著者，発表者には *
+{\mathrm{Marika \ Morikawa}^*},\ {Kenji\ Suyama},\ {(Tokyo Denki University)}
+
+\end{center}
+
+%abstract
+\begin{center}
+\begin{minipage}{165mm}
+\hspace{1em}
+abstract.
+  
+\vspace{1zh}
+% 日本語キーワード
+ディジタルフィルタ，アントコロニー最適化，FIRフィルタ
+
+% 英語キーワード
+(digital filter, ant colony optimization, FIR filter)
+\vspace{2zh}
+ \end{minipage}
+\end{center}
+]
+% -----------------------------------------------------------------
+
+% \input{}でstrフォルダにあるtexコードを代入できる
+
+% \section{セクション名}
+% \input{str/〇〇.tex}
+
+\section{はじめに}
+ディジタルフィルタは基本信号処理回路であり，音響や通信，医療などに活用されている．
+本研究では，FIR(Finite Impulse Responce)フィルタのハードウェア実装の際に問題となる
+回路規模の削減に注目する．ディジタルフィルタはインパルス応答長の違いによって
+FIRフィルタとIIR(Infinite Impulse Responce)に分類される．
+FIRフィルタは絶対安定であり，インパルス応答が対称なときに
+完全直線位相特性を実現可能である．一方でFIRフィルタは急峻な特性を得る際に
+高次数フィルタが必要である．そのため，急峻な特性をもつフィルタの回路規模は
+増大する．FIRフィルタのハードウェア実装に際して，高速動作や省電力動作が求められる．
+回路規模の増大は高速動作や省電力動作に悪影響を及ぼすため，回路規模削減は重要である．
+
+回路規模削減のため，フィルタ係数の CSD(CanonicSigned Digit)表現を行う．
+CSD 表現はフィルタ係数の各桁を\{\overline{1}(=-1),0,1\} で表現し，非零桁の隣接を
+禁止して係数に含まれる非零桁数を最小にする表現法である．
+FIRフィルタのフィルタ係数は乗算器に含まれるシフタと加算器で表現される．
+シフタ数はフィルタ係数に含まれる非零桁数に相当する．
+FIRフィルタの回路規模はシフタ数に左右されるため，CSD表現でフィルタ係数に含まれる
+非零桁数を最小にして回路規模削減を狙う．
+実用上，利用可能な非零桁数の上限が指定されることを鑑みて，利用可能な非零桁数に上限を
+設ける．この制約条件のため，フィルタ係数の取りうる値は不均一分布である．加えて，
+FIRフィルタ係数列であるインパルス応答列はsinc関数に近い形状をもつため，係数の
+ダイナミックレンジが広く，零交差数も多い．そのため，遮断周波数を決定する中央付近の
+係数には多数の非零桁が必要なのに対して，インパルス応答の裾部分で必要な非零桁は1か0である．
+以上より，CSD係数FIRフィルタ設計問題は回路全体で利用可能な非零桁数に上限を設けたうえで
+フィルタの設計誤差を最小にするように各フィルタ係数に非零桁を配分する組み合わせ最適化問題
+となる．この問題はNP困難であり実時間で解くのは不可能である．
+
+大規模な組み合わせ最適化問題を解くための手法の一つにACO (Ant Colony
+Optimization) を用いる手法が提案されている．ACOは蟻の採餌行動を模したアルゴリズム
+である．蟻は餌を探索する際に，たどった経路にフェロモンを付加して最短経路を導出する
+習性がある．フェロモンは時間経過で蒸発し，蟻はフェロモンの量に従って
+経路を選択するため，最終的に巣から餌場までの最短経路が最も多くフェロモンを有する経路となる．
+これをCSD係数FIRフィルタ設計問題に適用する．
+巣から餌場までの経路に見立て，目的関数値に応じたフェロモ
+ンを経路に付与する．優良な目的関数値の経路に大きなフェロ
+モンを選択的に付与し，経路選択確率をフェロモン量に応じて
+設定する．その結果，大きなフェロモンを有する経路がより所
+望特性に近い優良なフィルタを与える．こういった探索は，良
+解は同様の構造をもつ近接最適性原理 [8] に基づく探索が行わ
+れる．FIR フィルタのインパルス応答は与えられた仕様に対し
+て，同様な構造をもつため，周波数特性を特徴付ける係数値は探
+索序盤で早々に決定される．そのため，探索終盤では値が変動
+するフィルタ係数の非零桁に対応する経路が固定され，局所解
+停留に陥る．探索終盤で多様化能力向上を図ることがフィルタ
+特性を改善するための重要な戦略である．本研究では，フェロ
+モン付加を行う経路を評価値によってグループ分けし，探索終
+盤でも解変動を行う悪経路を含んだグループを良経路に加えて
+探索を行った．グループごとの評価値分布の推移と設計例から
+グループ化 ACO 有効性と，選択すべきグループの方針を示す．
+
+% -----------------------------------------------------------------
+
+\section{CSD係数FIRフィルタ設計問題}
+本章では，CSD係数FIRフィルタ設計問題を定式化し，ACOを適用す
+る際の目的関数を示す．
+
+\begin{figure}[ht]
+ \begin{center}
+  \includegraphics[width=0.48\textwidth]{image/firan.png}
+ \end{center}
+ \caption{FIRフィルタ}
+\ecaption{Circuit structure of the FIR filter}
+\label{fig:fir}
+\end{figure}
+
+図\ref{fig:fir}にFIRフィルタの回路図を示す．
+次数$N$が偶数，インパルス応答$h_{n}, n=0,1,\cdots,N$が偶対称の
+とき，FIRフィルタの振幅特性$H(\omega)$は次式で表される．
+\begin{equation}
+ H(\omega) = \sum_{n=0}^{M} a_{n}\cos n\omega
+\end{equation}
+ここで，$M=N/2$，$a_{0}=h_{M/2}$，$a_{n}=2h_{M-n}, \
+n=1,2,\cdots,M$である．
+
+$a_{n}$に次式で表されるCSD表現を適用する．
+\begin{equation}
+ a_{n}=\sum_{k=0}^{p}x_{n, k}2^{-k}, \ x_{n, k}\in\{\overline{1}(=-1),0,1\}
+\end{equation}
+ここで，$p+1$は語長である．制約条件として次式で非零桁の隣接を禁止する．
+\begin{equation}
+ B_{n,k}=|x_{n,k}|+|x_{n,k+1}| \leq 1
+\label{eqn:neibor}
+\end{equation}
+
+回路規模削減のために，制約条件として回路全体
+の非零桁数$\lambda$を上限$\Lambda$以下に制限する．
+\begin{equation}
+ \lambda = \sum_{n=0}^{M}\sum_{k=0}^{p} |x_{n,k}| \leq \Lambda
+\label{eqn:totalbits}
+\end{equation}
+
+所望特性$D(\omega)$に対する最大誤差最小化基準によるCSD係数FIRフィルタ設
+計問題は，次式で定義される．
+\begin{equation}
+\begin{array}{rl}
+ \min & \delta \\
+\mbox{sub.to} & |D(\omega_{i})-H(\omega_{i})|\leq \delta, \\
+& |x_{n,k}|+|x_{n,k+1}|\leq 1, \\
+&
+ \displaystyle{\sum_{n=0}^{M}}\displaystyle{\sum_{k=0}^{p}}|x_{n,k}|\leq
+ \Lambda, \\
+&   \displaystyle{ \sum_{k=0}^{p} |x_{M,k}| } \geq 1,\\
+& i\in\{1,2,\cdots,S\}
+\end{array}
+\label{eqn:mondai_def}
+\end{equation}
+ここで，$S$は周波数分割数である．
+
+(\ref{eqn:mondai_def})式の問題をACOで解くために目的関数$F(\bm{x})$を次式
+で定義する．
+\begin{equation}
+ F(\bm{x})=\delta+\phi_{1}(\bm{x})+\phi_{2}(\bm{x})
+\end{equation}
+ここで，$\bm{x}$は設計変数ベクトルであり，
+\begin{equation}
+ \bm{x}=[x_{0,0}, x_{0,1}, \cdots, x_{0,p}, x_{1, 0},\cdots, x_{M,p}]^{T}
+\end{equation}
+で定義される．
+$\phi_{1}(\bm{x})$は(\ref{eqn:neibor})式の制約条件に対するペナルティ関数であり，次式で定義される．
+\begin{equation}
+ \phi_{1}(\bm{x})=\left\{
+\begin{array}{ll}
+0, & \mbox{if} \ \lambda \leq \Lambda  \\
+\lambda-\Lambda, & \mbox{otherwise}
+\end{array}
+\right.
+\end{equation}
+$\phi_{2}(\bm{x})$は(\ref{eqn:totalbits})式の制約条件に対
+するペナルティ関数であり，次式で定義される．
+\begin{equation}
+ \phi_{2}(\bm{x})=\left\{
+\begin{array}{ll}
+ 0, & \mbox{if} \ B_{n,k} \leq 1, \forall n, k \\
+\displaystyle{\sum_{n=0}^{M}\sum_{k=0}^{p-1}} B_{n,k}, & \mbox{otherwise}
+\end{array}
+\right.
+\end{equation}
+ここで，$\lambda$は回路全体で使用している非零桁数である．
+
+通常，ペナルティ関数には重み付けするが，いずれのペナルティ関数
+もペナルティ付加時には正の整数値か$10^{-1}$以上の値をとるのに対し，最大誤差$\delta$は$10^{-3}$
+程度の値をとるため，重みなしでも制約条件を満たさない解を排除できる．
+
+ACOでは，$F(\bm{x})$を最小化する$\bm{x}$を探索する．
+
+% -----------------------------------------------------------------
+
+\section{ACOによるCSD係数FIRフィルタ設計}
+
+ACOは蟻が採餌行動の際に巣から餌場までの最短経路を見つけ出す過程を模したアルゴリズムである．
+図\ref{fig:ACOmodel.png}にACOによる探索モデルを示す．
+探索は蟻に該当する多数の個体が行う．
+ACOの探索は経路選択とフェロモン更新で構成され，この繰り返しで良解の探索を行う．
+図中の各$x_{n,k}$は蟻が選択する$\{{ \overline{1},0,1}\}$を表しており
+各$x_{n,k}$は経路で結ばれている．$n$は次数，$k$は語長である．探索モデル上で$start$から$end$
+までの1つの経路が1つのフィルタ係数列を与える．
+連続係数設計法で得られたフィルタ係数をCSDに単純丸めした初期係数列に
+初期フェロモン$\tau_{init}$を付与し，
+それ以外の経路には$1-\tau_{init}$を付与する．このフェロモンに
+基づいて蟻は経路を確率的に探索する．
+
+\vspace{-1zh}
+\begin{figure}[h]
+    \centering
+    \includegraphics[scale = 0.15]{image/ACOmodel.png}
+    \caption{ACOの探索モデル}
+    \ecaption{Search model in ACO}
+    \label{fig:ACOmodel.png}
+\end{figure}
+\vspace{1zh}
+
+経路選択における選択確率を以下のように設定した．
+探索回数$t$において，個体$u$が点$x_{n,k}$から$x_{n,k+1}$に対して，
+値$l (l=\{\overline{1}, 0, 1\})$から値$m (m=\{\overline{1}, 0, 1\})$，
+すなわち経路$l\rightarrow m, \
+l,m\in\{\overline{1},0,1\}$を選択する確率$P^{lm}_{n,k}(t)$を次式で算出する．
+\begin{equation}
+ P^{lm}_{n,k}(t)=\frac{\tau^{lm}_{n,k}(t)}{\tau^{l\overline{1}}_{n,k}(t)+\tau^{l0}_{n,k}(t)+\tau^{l1}_{n,k}(t)}
+\label{eqn:prob}
+\end{equation}
+ここで，$\tau^{lm}_{n, k}$は経路$l\rightarrow m$上のフェロモン量である．
+(\ref{eqn:prob})式より，経路$l\rightarrow m$の選択確率は経路に付与された
+フェロモン量の割合で算出される．
+
+$P^{lm}_{n,k}$に対して，一様乱数$r\in [0,1]$を与えたとき，$x_{n, k+1}$の
+選択，すなわち値$l$からの経路選択は以下で行う．
+\begin{equation}
+ x_{n, k+1}=\left\{
+\begin{array}{ll}
+0, & \mbox{if} \ r < P^{l0}_{n,k}(t) \\
+1, & \mbox{if} \ P^{l0}_{n,k}(t)\leq r < P^{l0}_{n,k}(t)+P^{l1}_{n,k}(t) \\
+\overline{1}, & \mbox{otherwise}
+\end{array}
+\right.
+\end{equation}
+この選択法では，(\ref{eqn:prob})式で算出した確率の高い経路ほど，$r$が当
+てはまる範囲が広いため，高い確率で経路が選択される．その結果，
+フェロモン量によって経路選択がコントロールされ，
+良好なフィルタを与える経路を選択的に探索できる．
+
+
+経路探索で用いられるフェロモンは次式で算出し，探索ごとに更新する．
+    \begin{equation}
+    \tau^{lm}_{n,k}(t+1)=\rho
+     \tau^{lm}_{n,k}(t)+\sum_{u=1}^{\sigma-1}\Delta\tau^{lm,u}_{n,
+     k}(t)+\Delta\tau^{lm, G}_{n, k}(t)
+   \label{eqn:phero}
+   \end{equation}
+ここで，$\sigma$は探索$t$における目的関数$F(\bm{x})$の上位個体数，$G$は探索$t$までの最
+良目的関数をもつ個体を表す．
+フェロモン更新の狙いは集中的に良好な経路付近を探索しつつ多様化を促す点にある．
+そのためにフェロモン更新を項目ごとに3段階に分けている．
+第1項で全経路からフェロモンを蒸発させる．$\rho$は蒸発係数である．
+第2項は上位個体が辿った経路へのフェロモン付加，第3項は最良個
+体経路へのフェロモン付加を表す．
+経路ごとのフェロモン量は目的関数値に対する割合で決定されるため，
+フェロモンが多く付加された良い経路の選択的かつ効率的な探索が可能になる．
+   
+上位個体経路へのフェロモン付加量$\Delta\tau^{lm,u}_{n, k}(t)$を次式で定義する．
+   \begin{equation}
+    \Delta\tau^{lm,u}_{n,k}(t)=\left\{
+   \begin{array}{ll}
+   \displaystyle{\frac{(\sigma-u)Q}{F(\bm{x}_{u, t})/\delta_{LP}}}, & \mbox{if }
+    (l,m) \in T^{u}(t)\\
+   0, & \mbox{otherwise}
+   \end{array}
+   \right.
+   \end{equation}
+ここで，$\delta_{LP}$は初期値算出のために線形計画法を用いて連続係数で設
+計した際の最大誤差であり，誤差正規化のために用いる．また，$Q$は定数，
+$T^{u}(t)$は上位個体経路の集合を表す．
+   
+最良個体経路へのフェロモン付加量$\Delta\tau^{lm, G}_{n, k}(t)$は次式で定
+義される．
+   \begin{equation}
+    \Delta\tau^{lm, G}_{n, k}(t)=\left\{
+   \begin{array}{ll}
+   \displaystyle{\frac{\sigma Q}{F(\bm{x}_{G, t})/\delta_{LP}}}, & \mbox{if } (l,m) \in
+     T^{G}(t)\\
+   0, & \mbox{otherwise}
+   \end{array}
+   \right.
+   \end{equation}
+ここで，$T^{G}(t)$は最良個体経路の集合を表す．
+
+CSD係数FIRフィルタ設計問題を解くにあたり，求められるのは探索における集中化と多様化のバランスである．
+CSD係数FIRフィルタ設計問題はCSD制約により実行可能領域が複雑化するうえに，
+CSD表現を満たす解は他の組み合わせ最適化問題と比較して，目的関数値が
+$10^{-1}～10^{-3}$と小さい．
+狭い値域に多数の解の組み合わせが集中するため，
+解の差別化が困難になり，解更新の妨げになる．
+このような問題に対しても，ACOは良好なフィルタを与える経路を選択的に探索できる．
+これは良解のフィルタ係数は類似するという近接最適性原理 (POP: Proximate Optimality Principle)\cite{POP}に基づいており，
+適度な集中化と多様化のバランスがとれた探索である．
+
+図\ref{fig:updating}に従来法の更新曲線を示す．
+探索序盤はPOPに基づく探索が有効に働き，良好なフィルタ係数を与える特徴的な非零桁がほとんど決定する．
+しかし，探索後半では変動可能な非零桁が限定され，解探索が阻害される可能性がある．
+そこで探索後半での多様化能力向上を試みる．
+
+\begin{figure}[ht]
+ \begin{center}
+  \includegraphics[width=0.48\textwidth]{image/target_normal.png}
+ \end{center}
+ \caption{従来法のACOの更新曲線}
+\ecaption{Updating curves by ACO for conventional methods}
+\label{fig:updating}
+\end{figure}
+
+
+% -----------------------------------------------------------------
+\section{個体群の評価値分布に基づく多様化戦略}
+\vspace{-1zh}
+\begin{figure}[h]
+    \centering
+     \includegraphics[width=0.48\textwidth]{image/start.png}
+\caption{探索序盤の評価値分布}
+\ecaption{Distribution of evaluation values in the early stages of the search}
+\label{fig:50_125_start.png}
+\end{figure}
+
+\vspace{-2zh}\vspace{-1zh}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.48\textwidth]{image/md.png}
+\caption{探索中盤の評価値分布}
+\ecaption{Distribution of evaluation values in the middle of the search}
+\label{fig:50_125_smd}
+\end{figure}
+
+\vspace{-2zh}\vspace{-1zh}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.48\textwidth]{image/end.png}
+\caption{探索終盤の評価値分布}
+\ecaption{Distribution of evaluation values at the end of the search}
+\label{fig:50_125_end}
+\end{figure}
+\vspace{-2zh}
+
+本節では，探索後半における ACO の多様化戦略
+として文献\cite{agent}で提案されている個体群の分布に基
+づくフェロモン更新則を導入する．この手法は，巡
+回セールスマン問題に対する多様化と集中化のバラ
+ンスを維持するために提案されているが，本研究の
+立場としては探索後半における多様性の維持のため
+に導入する．
+文献 \cite{agent}の手法は，全個体を評価値が良好な順に
+複数のグループ (本研究では 6 グループと設定) に分
+割する．最良個体群を使用したフェロモン更新が従来
+の手法に相当する．一方，文献\cite{agent} の手法では，フェ
+ロモン更新の際に良好な個体群に加え，評価の悪い
+群も選択し，フェロモンを付加する．もともと集中
+化能力の高い ACO では探索初盤に良好な個体群に
+より経路がある程度固定されるが，評価値の低い経
+路が加わったため，探索後半に変動可能な非零桁が
+加わり，良解発見につながる可能性がある．
+
+
+図\ref{fig:50_125_start.png}～\ref{fig:50_125_end}は次数50の
+探索に対する評価値分布を段階に分けて示したものである．
+横軸が個体の順位を表し，数字が大きい個体ほど悪い評価値を有している．
+縦軸は最大誤差を示している．個体の有する最大誤差が大きいほど評価値は悪い．
+ACOの探索は大きく3段階に分けられる．
+探索が進んでおらず，評価値の分散が大きい探索序盤，
+良経路の一部が最終的な最適解に近づき，分散が急速に減少する探索中盤，
+探索個体のほぼ全てが同値になる探索終盤である．
+
+
+メタ手法での探索で重要なのは多様化と集中化のバランスである．
+グループ分けをするにあたって必要なのは2種類と言える．
+集中化のために良解を保存するグループと，解変動が盛んで探索を通して分散が大きいグループである．
+このとき，ペナルティ関数が付加された個体は解変動こそ大きいが，求めるフィルタ特性は有さないため探索に良い影響は与えない．
+以上より，仮説としてグループごとに評価値の分散が小さいグループと評価値の分散が大きいグループを選択し探索を
+行うと評価値が改善すると考えられる．
+グループ分けには何通りもの方法が考えられるが，グループ分けがメタ手法におけるパラメータ化した場合，設計においては本末転倒である．
+必要なグループの性質を考慮した結果，今回は大まかに評価値をもたせた3グループでの設計と，悪経路においてペナルティ関数が付加された
+個体を切り離して選択できる6グループで設計を行った．
+
+% -----------------------------------------------------------------
+\section{設計例}
+本章では，多様化戦略の効果を設計例によって確
+認する．所望特性$D(\omega)$は次式で設定した．
+\begin{equation}
+ D(\omega)=\left\{
+\begin{array}{ll}
+ 1, & 0\leq \omega \leq \omega_{p} \\
+0, & \omega_{s}\leq \omega \leq \pi
+\end{array}
+\right.
+\end{equation}
+ここで，$\omega_{p}$は通過域端角周波数，$\omega_{s}$は阻止域端角周波数で
+ある．表\ref{tbl:condition2}に設計条件を示す．
+表1において$K$は個体数，$I$は探索回数，$T$は試行回数を表す．
+
+
+適切なグループ分けの検討のため，探索個体をそれぞれ6グループと3グループに分けた．
+6グループの試行例については良経路を含む第1グループと第2グループに加えて，比較的悪い評価値をもつ
+第5グループを追加して設計した．これを1,2,5(all 6)とする．同様に第5グループのかわりにペナルティ関数が付加された
+個体が多く含まれる第6グループを追加した例でも設計を行う。これを1,2,6(all 6)とする．
+また，3グループの試行例については良経路の第1グループに第3グループを追加して設計を行った．これを1,3(all 3)とする．
+この2例で追加する悪い評価値をもつ個体数，ペナルティ関数が付加された個体が
+含まれるグループが探索に与える効果について検証する．
+
+良経路と追加する悪経路のバランスについても検証する．
+6グループに分けたなかから，良経路として第1グループ，中程度の評価値をもつ第3グループ，悪い評価値をもつ第6グループを
+選出して設計を行った．これを1,3,6(all 6)とする．
+同様に第1グループと第6グループのみで設計を行った．これを1,6(all 6)とする．
+
+表\ref{tbl:data type1}に設計結果を示す．
+グループ分けのない従来法のACO(Not Group)と比較して，次数100では全ての設計例で性能が改善している．
+次数50でも設計性能はほぼ同等である．次数50，次数100に共通して，1,2,5(all 6)で設計性能が改善している．
+良い評価値をもつグループに悪い評価値をもつグループを追加した設計に効果があるとわかる．また，良経路と悪経路の
+個体数は同程度か良経路が多い設計例で性能が改善するのが明らかになった．
+
+設計性能が改善した次数100での1,2,6(all 6)と1,6(all 6)のグループごとの評価値分布を表\ref{tbl:data_type2}と表\ref{tbl:data_type3}に示す．
+縦がグループ，横が探索回数$I$を示している．表\ref{tbl:data_type3}ではグループ1から5までが探索回数$I=60$までに分散が一定になり解停留を
+起こしているが，グループ6では分散が一定にならず変動しているのがわかる．
+表\ref{tbl:data_type2}ではグループ1,2とグループ5の分散が探索終盤付近においても異なる値を保って探索を行っている．その上で良経路の個体数が
+悪経路の個体より多いため，メタ手法で重要な多様化と集中化のバランスを保って探索が行われた結果，設計性能が改善したと言える．
+同様に悪い評価値をもつグループを追加して設計をした1,2,5(all 6)と1,6(all 6)の結果の差異については，グループ6に含まれるペナルティ関数が付加された
+個体が探索に良い影響を与えられず，継続的な停留回避につながらなかったと考えられる．
+
+図\ref{fig:target.png}に次数100での各設計例の更新曲線を示す．紫の従来法が早期に停留しているのに対して，グループ化
+を施した設計例がいずれも多様化を保ちながら解更新を繰り返して探索を行っている様子がわかる．
+
+\begin{table}[t]
+\caption{設計条件}
+\vspace{0.5zh}
+\ecaption{Design Conditions.}
+\label{tbl:condition2}
+\begin{center}
+ \begin{tabular}{c|c|cl} \hline 
+	Ex  & 1 & 2 \\ \hline
+	$N$ & 50 & 100 	 \\ \hline
+	$p$ & 16 & 16   \\ \hline
+	$\omega_{p}$ & $0.400\pi$ & $0.450\pi$  \\ \hline
+	$\omega_{s}$ & $0.510\pi$ & $0.500\pi$  \\ \hline
+	$\tau_{init}$ & 0.8 & 0.8 \\ \hline
+	$\rho$ & 0.9 & 0.9   \\ \hline
+	$Q$ & 10 & 10   \\ \hline
+	$K$ & 600 & 600  \\ \hline
+	$I$ & 500 & 500   \\ \hline
+	$T$ & 10 & 10 \\ \hline
+	$\sigma$ & 200 & 200  \\ \hline
+ \end{tabular}
+\end{center}
+\end{table}
+
+
+\vspace{-1zh}
+\begin{figure}[h]
+    \centering
+     \includegraphics[width=0.48\textwidth]{image/target.png}
+\caption{更新曲線}
+\ecaption{Updating curve}
+\label{fig:target.png}
+\end{figure}
+
+\begin{table*}[t]
+\caption{最大誤差の最良値$ \delta_{best} $(×$10^{-2}$)}
+\vspace{0.5zh}
+\ecaption{The best values of maximum design error.$ \delta_{best} $(×$10^{-2}$)}
+\label{tbl:data type1}
+\begin{center}
+	\begin{tabular}{c|c|c|c|c|c|c|c|c|c|c|c|}
+		\hline
+		$N$ &Not Group & 1,2,5(all 6) & 1,2,6(all 6)& 1,3,6(all 6) & 1,6(all 6) & 1,3(all 3)  \\
+		\hline 
+		50 & 0.2505  & 0.2479 & 0.2508 & 0.2511 & 0.2511  & 0.2480 \\ \hline
+		100 & 1.4587  & 1.0822  & 1.4025 & 1.4335 & 1.1196 & 1.2786  \\ \hline
+		%parameter adjusted g-ACO & \\ \hline
+	\end{tabular}
+\end{center}
+\end{table*}
+
+\begin{table*}[t]
+\caption{探索回数に対する各グループの評価値の分散($N=100$,group1,2,5)$ \delta_{var} $}
+\vspace{0.5zh}
+\ecaption{Variance of the evaluation values for each group with respect to the number of searches$ \delta_{var}$}
+\label{tbl:data_type2}
+\begin{center}
+\scalebox{0.7}{
+\hspace{-2cm}
+	\begin{tabular}{c|c|c|c|c|c|c|c|c|c|c|c|c|c|c}
+		\hline
+Group	&1	&15&	30&	45&	60&	75&	90&	105&	120&	200&	300&	400&	500\\ \hline
+1&	1018.5682&	356.8956&	45.9289&	2.3031(×$10^{-3}$)&	3.8329(×$10^{-6}$)	&5.0222(×$10^{-7}$)&	7.7577(×$10^{-8}$)&	2.9123(×$10^{-9}$)&	9.1302(×$10^{-11}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)\\ \hline
+2&	77.7230	& 22.2336	& 7.8705	& 7.5503(×$10^{-4}$)	&1.20611(×$10^{-6}$) &	1.01828(×$10^{-7}$)&	1.64859(×$10^{-8}$)&	4.7398(×$10^{-10}$)&	1.2158(×$10^{-35}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)&	3.6779(×$10^{-34}$)\\ \hline
+3&	80.2264&	16.3260&	5.2665&	1.949967(×$10^{-3}$)&	1.6442(×$10^{-6}$)&	1.1101(×$10^{-7}$)&	2.2072(×$10^{-8}$)&	5.1590(×$10^{-8}$)&	1.2157(×$10^{-35}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&\\ \hline
+4&	59.4186&	20.4282	&7.3946&	6.73399(×$10^{-3}$)&	3.1155(×$10^{-6}$)&	1.6480(×$10^{-7}$)&	3.8374(×$10^{-8}$)&	4.6493(×$10^{-9}$)&	2.1023(×$10^{-9}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&\\ \hline
+5&	74.6220&	53.7781	&6.3487&	0.2077&	1.0732(×$10^{-5}$)&	7.6022(×$10^{-7}$)&	1.3991(×$10^{-7}$)&	1.0245(×$10^{-7}$)&	6.2431(×$10^{-9}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&\\ \hline
+6&	1012.6832&	257.1153&	86.2938&	3.0431&	3.0197&	2.4742&	0.7590&	0.6252&	0.2075&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&	3.0393(×$10^{-34}$)&\\ \hline
+all &	4069.4387&	1443.0442&	328.0787&	2.4463&	0.8742&	0.6913&	0.3018&	0.3775&	0.1363&	1.6063(×$10^{-32}$)&	1.6063(×$10^{-32}$)&	1.6063(×$10^{-32}$)&	1.6063(×$10^{-32}$)\\ \hline
+
+\end{tabular}
+}
+\end{center}
+\end{table*}
+
+\begin{table*}[t]
+\caption{探索回数に対する各グループごとの評価値の分散($N=100$,group1,6)$ \delta_{var} $}
+\vspace{0.5zh}
+\ecaption{Variance of the evaluation values for each group with respect to the number of searches.$ \delta_{var}$}
+\label{tbl:data_type3}
+\begin{center}
+\scalebox{0.7}{
+\hspace{-2cm}
+	\begin{tabular}{c|c|c|c|c|c|c|c|c|c|c|c|c|c|c}
+		\hline
+Group	&1	&15&	30&	45&	60&	75&	90&	105&	120&	200&	300&	400&	500\\ \hline
+1&	325.9&	7.15(×$10^{-11}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)\\ \hline
+2&	49.0031	& 8.7(×$10^{-11}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)\\ \hline
+3&	23.6343&	1.96(×$10^{-9}$)&7.5(×$10^{-12}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)\\ \hline
+4&	27.2235&	7.44(×$10^{-6}$)&2.97(×$10^{-12}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)\\ \hline
+5&	68.1331&	0.1034&9.64(×$10^{-14}$)&	1.94(×$10^{-11}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)&2.46(×$10^{-34}$)\\ \hline
+6&	553.7105&	0.1825&	0.2485&	0.1823&	0.09008&	0.09801&	0.09009&	0.06514&	0.09009&	0.07366&	0.06514&	0.1346&	0.06514&\\ \hline
+all &2127.2887&0.2218&	0.05835&	0.03996&	0.01641&	0.01802&	0.01799&	0.01871&	0.01641&	0.01317&	0.01315&0.02753&0.01315\\ \hline
+
+\end{tabular}
+}
+\end{center}
+\end{table*}
+
+
+\section{おわりに}
+ACOによるCSD係数FIRフィルタ設計においてACOの探索後半における多様化戦略の有効性をグループ内の評価値分布から示した．
+グループごとの特徴をグループごとの分散から分析し，解変動が長く続く悪い評価値をもつグループを良経路に導入して探索後半での
+多様化能力向上を図り，設計例から設計性能の改善を示した．
+
+\section{謝辞}
+本研究の一部は，科研費基盤研究(C)(22K04110)として行ったものである。
+
+% 謝辞がある場合はコメントアウトを外す
+% \section*{謝辞}
+%　本研究は，〜〜
+
+% 参考文献は'str/bibs.tex'に記入する
+\begin{thebibliography}{99}
+\input{str/bibs.tex}
+\end{thebibliography}
+
+\end{document}
